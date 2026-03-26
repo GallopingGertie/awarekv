@@ -571,27 +571,34 @@
    - ✅ WorkerSide 完善 load/save 生命周期
    - ✅ 使用 metadata.py 辅助函数
    - ✅ 所有方法语法正确，结构完整
+   - ⚠️ **Runtime validation pending** - 需要完整依赖环境验证
 
 ### 🎯 下一步重点
 
-1. **P2/P3 核心**：与 vLLM 实际集成，验证 paged KV 操作
-2. **P4**：实验和指标，产出论文数据
-3. **P5**：测试和文档，确保可维护性
+1. **P1-R-RUN**: Runtime validation in target environment
+2. **P2**: 与 vLLM 实际集成，验证 paged KV 操作
+3. **P3**: Refinement pipeline 实现
+4. **P4**: 实验和指标，产出论文数据
+5. **P5**: 测试和文档，确保可维护性
 
 ### 📊 进度估计
 
 - ✅ **P0**: 100% 完成
 - ✅ **P1**: 100% 完成
-- ✅ **P1-R**: 100% 完成（2026-03-26 新完成）
-- 🚧 **P2**: 60% 完成（框架完成，需实际验证）
-- 🚧 **P3**: 50% 完成（框架完成，需实际运行）
-- ⏳ **P4**: 10% 完成（metrics 部分就绪）
+- ⏳ **P1-R**: Structure complete, **runtime validation pending**
+  - Structure: 100% (all methods implemented)
+  - Runtime validation: 0% (awaiting target environment)
+- 🚧 **P2**: 0% 开始（等待 P1-R runtime 验收）
+- 🚧 **P3**: 0% 开始（等待 P2）
+- ⏳ **P4**: 0% 开始（等待 P3）
 - ⏳ **P5**: 5% 完成（README 已更新）
 
-**总体进度**：~65% 完成（P1-R 重构完成后）
+**总体进度**：~55% 完成（结构层面）
+
+**Runtime validation status**: Ready for verification, not yet verified
 
 ---
 
-**更新完成时间**: 2026-03-26 (P1-R 完整完成)  
-**状态**: P0 ✅ 完成, P1 ✅ 完成, P1-R ✅ 完成  
-**下一步**: 开始 P2/P3 - 与 vLLM 实际集成和验证
+**更新完成时间**: 2026-03-26 (P1-R structure complete, runtime validation pending)  
+**状态**: P0 ✅ 完成, P1 ✅ 完成, P1-R ⏳ **ready for runtime validation**  
+**下一步**: 在目标环境完成 P1-R runtime 验收后再进入 P2

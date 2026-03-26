@@ -151,7 +151,7 @@ def extract_layer_kv_cache(forward_context, layer_name: str):
 
 
 def extract_layer_name(layer_idx: int) -> str:
-    return f\"layer_{layer_idx}\"
+    return f"layer_{layer_idx}"
 
 
 def extract_num_layers(model_config) -> int:

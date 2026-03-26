@@ -315,8 +315,10 @@ class WorkerSide:
             session = self.save_sessions[request_id]
             
             if session.is_complete() and not session.aborted:
-                logger.info(f"Request {request_id}: save session complete, would flush to saver")
-                # TODO: Flush to saver service
+                logger.info(f"Request {request_id}: save session complete")
+                # NOTE: Flush to saver service not implemented in P1-R
+                # Will be implemented in P2 with full save pipeline
+                logger.debug(f"Request {request_id}: save flush deferred to P2")
             elif session.aborted:
                 logger.warning(
                     f"Request {request_id}: save session aborted, "
@@ -445,7 +447,9 @@ class WorkerSide:
                         f"({len(refine_data)} bytes)"
                     )
                     self.metrics.record_refinement_bytes(len(refine_data))
-                    # TODO: Apply refinement to loaded KVs
+                    # NOTE: Apply refinement to loaded KVs not implemented in P1-R
+                    # Will be implemented in P3 with refinement pipeline
+                    logger.debug(f"Request {request_id}: refinement apply deferred to P3")
                 else:
                     logger.warning(f"Request {request_id}: refinement load failed")
             

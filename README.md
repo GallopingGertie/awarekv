@@ -1,6 +1,6 @@
 # DAKV: Deadline-Aware Prefix KV for vLLM
 
-> **⚠️ Project Status**: This project is under active development. Core components (vLLM connector lifecycle, paged KV apply/extract, prefix-level save/load) are being implemented.
+> **⚠️ Project Status**: Runtime validation preparation in progress. Core components implemented but not yet verified in live environment.
 
 A deadline-aware prefix KV caching system with tiered storage for vLLM.
 
@@ -19,23 +19,35 @@ This project uses **fixed versions** to ensure stability. Do not upgrade depende
 
 ## Project Status
 
-### ✅ Completed
+### ✅ Completed (Structure)
 - Version pinning (torch==2.1.0, vLLM==0.6.3.post1)
 - Module scaffolding (planner, codec, store, transport, tier, connector)
 - Basic planner logic (deadline-aware mode selection)
 - Codec implementations (fp16, int8)
 - Transport protocol (critical/refinement channels)
 - Manifest service and object storage
+- **vLLM Connector V1 lifecycle implementation** (P1-R structure complete)
+  - Scheduler-side: manifest query, planning, metadata generation
+  - Worker-side: load/save lifecycle methods
+  - State management with StateManager
 
-### 🚧 In Progress
-- **vLLM Connector V1 lifecycle integration** (P1-R)
-- **Prefix-level save/load main path** (P2-R)
-- **Real paged KV apply/extract** (P3-R)
-- **Background refinement mechanism** (P4-R)
+### ⏳ Ready for Runtime Validation
+- **P1-R Runtime Verification** - Structure complete, awaiting live environment testing
+  - All 13 lifecycle methods implemented
+  - Integration test scripts prepared
+  - Deployment scripts ready
+  
+### 🚧 Not Yet Implemented
+- **Prefix-level save flush** (deferred to P2)
+- **Refinement apply to KV cache** (deferred to P3)
+- **Real paged KV inject/extract** (requires vLLM integration)
+- **Slot mapping alignment** (requires vLLM integration)
 
 ### ⏳ Planned
-- Paper-level benchmarking and metrics (P5-R)
-- Comprehensive testing and documentation (P6)
+- P2: vLLM integration and paged KV operations
+- P3: Refinement pipeline
+- P4: Paper-level benchmarking and metrics
+- P5: Comprehensive testing and documentation
 
 ## Features
 
