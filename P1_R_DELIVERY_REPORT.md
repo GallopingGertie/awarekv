@@ -1,11 +1,15 @@
-# P1-R 交付报告：真实的 vLLM Connector 生命周期
+# P1-R 交付报告：vLLM Connector 生命周期实现
+
+> **⚠️ 状态更新**: 本报告为初始交付报告，描述的是 structure 完成状态。  
+> **当前状态**: Structure 100% complete, runtime validation pending (0%)  
+> **最新报告**: 请参考 `P1_R_RUN_FIX_DELIVERY.md`
 
 ## 📋 任务概述
 
-**任务名称**: P1-R: 完成真实的 vLLM connector 生命周期  
+**任务名称**: P1-R: vLLM connector 生命周期实现  
 **开始时间**: 2026/3/26  
-**完成时间**: 2026/3/26  
-**状态**: ✅ 已完成
+**Structure 完成**: 2026/3/26  
+**状态**: ⏳ Structure complete, **runtime validation pending**
 
 ## 🎯 交付目标
 
@@ -444,7 +448,7 @@ def request_finished(self, request_id: str):
 
 ## 🚀 后续工作
 
-P1-R 已完成，但以下功能仍在计划中：
+P1-R structure 已完成，以下功能仍在计划中：
 
 ### P2: 完整的 Save Path (计划中)
 - [ ] 实现完整的 KV save 到 remote storage
@@ -473,16 +477,17 @@ P1-R 已完成，但以下功能仍在计划中：
 
 ## 🎉 总结
 
-P1-R 任务**已完成** ✅
+P1-R **Structure complete** ✅, **Runtime validation pending** ⏳
 
-DeadlinePrefixKVConnector 现在真正实现了 vLLM KVConnectorBase_V1 接口契约：
+DeadlinePrefixKVConnector 结构实现了 vLLM KVConnectorBase_V1 接口契约：
 - ✅ 显式继承 `KVConnectorBase_V1`
 - ✅ 实现所有必需的生命周期方法
 - ✅ Scheduler-side 和 Worker-side 逻辑完整
 - ✅ 状态管理清晰健壮
 - ✅ 错误处理和资源清理完善
 
-**下一步**: 等待 P1-R 验收通过后，进入 P2/P3/P4 阶段。
+**当前状态**: Structure 100%, Runtime 0%  
+**下一步**: 在目标环境完成 runtime validation 后决定进入 P2
 
 ---
 

@@ -36,9 +36,11 @@
 
 ---
 
-### ✅ P1-R: 完成真实的 vLLM connector 生命周期重构（2026-03-26 新完成）
+### ⏳ P1-R: vLLM connector 生命周期重构（Structure complete, runtime validation pending）
 
 **任务目标**: 让 DeadlinePrefixKVConnector 真正符合 vLLM KVConnectorBase_V1 接口契约
+
+**当前状态**: Structure 100% complete, runtime validation 0% (awaiting target environment)
 
 #### Step 5: 重构 scheduler_side.py ✅
 - ✅ **集成 StateManager**: 不再直接管理 `self.request_states`，改用 `self.state_manager`
@@ -542,16 +544,17 @@
 
 ## 总结
 
-### ✅ P1 和 P1-R 的工作已全部完成
+### ✅ P1 完成，P1-R structure complete (runtime validation pending)
 
-系统已经从"原型骨架"完整升级为：
+系统已经从"原型骨架"升级为：
 
-1. **真正的 vLLM Connector 实现**：
+1. **真正的 vLLM Connector 实现** (Structure complete)：
    - ✅ 完整的生命周期接口（13 个方法）
    - ✅ Request-scoped 状态管理（StateManager）
    - ✅ Scheduler/Worker 角色分工明确
    - ✅ 集成 metadata 辅助函数
    - ✅ 健壮的错误处理和资源清理
+   - ⏳ **Runtime validation pending** - 需要目标环境验证
 
 2. **完善的 Object 格式**：
    - 规范的 header（128 字节）
@@ -566,12 +569,12 @@
    - 输出包含 request_id 的详细日志
    - 支持 RequestMetadata 扩展
 
-5. **重构后的 Scheduler/Worker**（P1-R 新增）：
+5. **重构后的 Scheduler/Worker**（P1-R）：
    - ✅ SchedulerSide 集成 StateManager
    - ✅ WorkerSide 完善 load/save 生命周期
    - ✅ 使用 metadata.py 辅助函数
    - ✅ 所有方法语法正确，结构完整
-   - ⚠️ **Runtime validation pending** - 需要完整依赖环境验证
+   - ⏳ **Runtime validation pending** - 需要目标环境验证
 
 ### 🎯 下一步重点
 
@@ -585,12 +588,13 @@
 
 - ✅ **P0**: 100% 完成
 - ✅ **P1**: 100% 完成
-- ⏳ **P1-R**: Structure complete, **runtime validation pending**
-  - Structure: 100% (all methods implemented)
-  - Runtime validation: 0% (awaiting target environment)
-- 🚧 **P2**: 0% 开始（等待 P1-R runtime 验收）
-- 🚧 **P3**: 0% 开始（等待 P2）
-- ⏳ **P4**: 0% 开始（等待 P3）
+- ⏳ **P1-R**: Structure 100% complete, **runtime validation pending (0%)**
+  - Structure: 100% (all methods implemented, syntax correct)
+  - Runtime validation: 0% (awaiting target environment with torch/vllm)
+  - **不能进入 P2 直到 runtime validation 通过**
+- ⏸️  **P2**: Blocked (等待 P1-R runtime 验收)
+- ⏸️  **P3**: Blocked (等待 P2)
+- ⏸️  **P4**: Blocked (等待 P3)
 - ⏳ **P5**: 5% 完成（README 已更新）
 
 **总体进度**：~55% 完成（结构层面）
@@ -600,5 +604,5 @@
 ---
 
 **更新完成时间**: 2026-03-26 (P1-R structure complete, runtime validation pending)  
-**状态**: P0 ✅ 完成, P1 ✅ 完成, P1-R ⏳ **ready for runtime validation**  
+**状态**: P0 ✅ 完成, P1 ✅ 完成, P1-R ⏳ **structure complete, runtime validation pending**  
 **下一步**: 在目标环境完成 P1-R runtime 验收后再进入 P2
