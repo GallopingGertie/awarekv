@@ -267,16 +267,23 @@ class WorkerSide:
         Wait for all pending save operations to complete
         
         This is called from connector's wait_for_save() lifecycle method.
+        
+        Note (P2):
+            Current implementation: Save sessions are accumulated but not flushed.
+            P2 scope: Implement flush to saver service with full save pipeline.
+            P1-R scope: Only save session accumulation and lifecycle tracking.
         """
         if not self.save_sessions:
             logger.debug("wait_for_save: no active save sessions")
             return
         
-        logger.info(f"wait_for_save: waiting for {len(self.save_sessions)} save sessions")
+        logger.info(f"wait_for_save: {len(self.save_sessions)} save sessions ready")
         
-        # In current implementation, saves are synchronous
-        # Future implementation could flush sessions to saver here
-        logger.debug("wait_for_save: all saves complete (synchronous mode)")
+        # P1-R: Sessions accumulated, flush not implemented
+        # P2: Will flush to saver service here
+        logger.debug(
+            "wait_for_save: save flush to saver service not implemented (P2 scope)"
+        )
     
     def request_finished(self, request_id: str):
         """
@@ -315,17 +322,27 @@ class WorkerSide:
             session = self.save_sessions[request_id]
             
             if session.is_complete() and not session.aborted:
-                logger.info(f"Request {request_id}: save session complete")
-                # NOTE: Flush to saver service not implemented in P1-R
-                # Will be implemented in P2 with full save pipeline
-                logger.debug(f"Request {request_id}: save flush deferred to P2")
+                logger.info(
+                    f"Request {request_id}: save session complete "
+                    f"({session.num_layers_saved()} layers)"
+                )
+                # NOTE (P2): Flush to saver service not implemented in P1-R
+                # P2 will encode, transfer, and update manifest
+                # Current: Only session lifecycle tracking
+                logger.debug(
+                    f"Request {request_id}: save flush deferred to P2 "
+                    f"(saver service integration)"
+                )
             elif session.aborted:
                 logger.warning(
                     f"Request {request_id}: save session aborted, "
                     f"reason: {session.abort_reason}"
                 )
             else:
-                logger.warning(f"Request {request_id}: save session incomplete")
+                logger.warning(
+                    f"Request {request_id}: save session incomplete "
+                    f"({session.num_layers_saved()}/{self.config.num_layers} layers)"
+                )
             
             del self.save_sessions[request_id]
             logger.debug(f"Request {request_id}: removed save session")
@@ -380,6 +397,12 @@ class WorkerSide:
         
         Returns:
             List of decoded KV tensors (one per layer)
+        
+        Note:
+            Shape recovery strategy:
+            1. Ideal: Read from object header (P2)
+            2. Fallback: Infer from config (num_kv_heads, head_size, block_size)
+            3. Current: Use config-based estimation
         """
         codec = get_codec(codec_name)
         
@@ -391,23 +414,22 @@ class WorkerSide:
             end = start + chunk_size if i < num_layers - 1 else len(data)
             layer_data = data[start:end]
             
-            # Infer shape from data size and config
-            # For now, use a reasonable default that matches common models
-            # Shape: (num_blocks, block_size, num_kv_heads, head_size)
-            # Simplified: assume we can infer from data size
+            # Infer shape from config and data size
+            # P2 TODO: Read shape from object header for accuracy
             block_size = self.config.block_size
+            num_kv_heads = getattr(self.config, 'num_kv_heads', 32)
+            head_size = getattr(self.config, 'head_size', 128)
             
-            # Estimate shape from byte size
-            # int8: 1 byte per element, fp16: 2 bytes per element
+            # Estimate num_blocks from byte size
             bytes_per_element = 1 if "int8" in codec_name else 2
             total_elements = len(layer_data) // bytes_per_element
+            expected_elements_per_block = block_size * num_kv_heads * head_size
+            num_blocks = max(1, total_elements // expected_elements_per_block)
             
-            # Reasonable default: (1, block_size, 32, 128) for num_blocks=1
-            # This will be overridden by actual decoded tensor shape
-            estimated_shape = (1, block_size, 32, 128)
+            # Construct shape from config
+            estimated_shape = (num_blocks, block_size, num_kv_heads, head_size)
             
-            # Create encoded blob with estimated shape
-            # The codec will decode and return actual shape
+            # Create encoded blob
             blob = EncodedBlob(
                 codec_name=codec.name,
                 data=layer_data,
@@ -415,7 +437,7 @@ class WorkerSide:
                 dtype="int8" if "int8" in codec.name else "float16"
             )
             
-            # Decode - codec will handle actual shape
+            # Decode - codec may adjust shape based on actual data
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             decoded = codec.decode(blob, device=device)
             
@@ -429,6 +451,10 @@ class WorkerSide:
         
         Args:
             metadata: Connector metadata with refinement info
+        
+        Note:
+            Refinement application to loaded KVs is P3 scope.
+            P1-R only fetches refinement data and stores it.
         """
         request_id = metadata.request_id
         
@@ -447,9 +473,14 @@ class WorkerSide:
                         f"({len(refine_data)} bytes)"
                     )
                     self.metrics.record_refinement_bytes(len(refine_data))
-                    # NOTE: Apply refinement to loaded KVs not implemented in P1-R
-                    # Will be implemented in P3 with refinement pipeline
-                    logger.debug(f"Request {request_id}: refinement apply deferred to P3")
+                    
+                    # NOTE (P3): Refinement apply not implemented in P1-R
+                    # P3 will decode refinement and overlay on critical KVs
+                    # Current: Only fetch and metrics recording
+                    logger.debug(
+                        f"Request {request_id}: refinement data fetched, "
+                        f"apply logic in P3"
+                    )
                 else:
                     logger.warning(f"Request {request_id}: refinement load failed")
             
