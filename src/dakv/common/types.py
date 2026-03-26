@@ -117,13 +117,15 @@ class WorkerLoadResult:
     request_id: str
     success: bool
     loaded_tokens: int = 0
-    loaded_blocks: List[int] = field(default_factory=list)
-    critical_done: bool = False
-    refinement_done: bool = False
-    bytes_transferred: int = 0
+    loaded_blocks: int = 0
+    critical_load_done: bool = False
+    refinement_load_done: bool = False
+    critical_bytes: int = 0
+    refinement_bytes: int = 0
+    critical_load_ms: float = 0.0
+    refinement_load_ms: float = 0.0
     error_code: str = ""
     error_message: str = ""
-    load_time_ms: float = 0
 
 
 @dataclass
