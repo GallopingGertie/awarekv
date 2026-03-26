@@ -57,7 +57,11 @@ class MetricsConfig:
 @dataclass
 class DeadlineKVConfig:
     model_id: str = "meta-llama/Llama-2-7b-hf"
+    tokenizer_id: str = "meta-llama/Llama-2-7b-hf"
     kv_layout_version: str = "v1-block-first"
+    block_size: int = 16
+    cache_dtype: str = "float16"
+    num_layers: int = 32
     ttft_slo_ms: int = 500
     tp_size: int = 1
     enable_tier1_host_cache: bool = True

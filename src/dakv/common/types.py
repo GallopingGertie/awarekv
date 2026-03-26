@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import List, Optional, Literal, Dict, Any
+from enum import Enum
 
 
 @dataclass
@@ -38,6 +39,7 @@ class PrefixManifest:
     refinement_object_id: Optional[str] = None
     quality_mode: Literal["fp16", "int8+fp16", "int8_only"] = "fp16"
     checksum: str = ""
+    object_format_version: str = "v1"
 
 
 @dataclass
@@ -61,12 +63,33 @@ class TransferPlan:
 
 
 @dataclass
+class DeadlineConnectorMetadata:
+    request_id: str
+    prefix_key: Optional[str] = None
+    plan_mode: str = ""
+    matched_tokens: int = 0
+    matched_blocks: List[int] = field(default_factory=list)
+    num_layers: int = 32
+    critical_object_id: str = ""
+    critical_codec: str = ""
+    critical_nbytes: int = 0
+    refinement_object_id: Optional[str] = None
+    refinement_codec: Optional[str] = None
+    refinement_nbytes: Optional[int] = None
+    need_refinement: bool = False
+    load_deadline_ms: int = 0
+    allocated_block_ids: List[int] = field(default_factory=list)
+    load_from_tier: str = "T2"
+
+
+@dataclass
 class RequestTransferState:
     request_id: str
     prefix_key: Optional[str] = None
     matched_tokens: int = 0
     matched_blocks: List[int] = field(default_factory=list)
     plan: Optional[TransferPlan] = None
+    manifest: Optional[PrefixManifest] = None
     status: Literal[
         "INIT",
         "MISS",
@@ -82,6 +105,38 @@ class RequestTransferState:
     start_time_ms: int = 0
     critical_load_time_ms: float = 0
     refine_load_time_ms: float = 0
+    allocated_block_ids: List[int] = field(default_factory=list)
+    critical_done: bool = False
+    refinement_done: bool = False
+    request_finished: bool = False
+    fallback_reason: Optional[str] = None
+
+
+@dataclass
+class WorkerLoadResult:
+    request_id: str
+    success: bool
+    loaded_tokens: int = 0
+    loaded_blocks: List[int] = field(default_factory=list)
+    critical_done: bool = False
+    refinement_done: bool = False
+    bytes_transferred: int = 0
+    error_code: str = ""
+    error_message: str = ""
+    load_time_ms: float = 0
+
+
+@dataclass
+class WorkerSaveResult:
+    request_id: str
+    success: bool
+    saved_tokens: int = 0
+    saved_blocks: List[int] = field(default_factory=list)
+    critical_bytes: int = 0
+    refinement_bytes: int = 0
+    error_code: str = ""
+    error_message: str = ""
+    save_time_ms: float = 0
 
 
 @dataclass
@@ -94,17 +149,6 @@ class WorkerLoadTask:
     critical_ready: bool = False
     refine_ready: bool = False
     applied_refine_version: int = 0
-
-
-@dataclass
-class DeadlineConnectorMetadata:
-    request_id: str
-    prefix_key: Optional[str] = None
-    matched_tokens: int = 0
-    matched_blocks: List[int] = field(default_factory=list)
-    plan: Optional[TransferPlan] = None
-    need_remote_load: bool = False
-    need_refinement: bool = False
 
 
 @dataclass
@@ -135,3 +179,16 @@ class RequestMetrics:
     fallback_reason: Optional[str] = None
     degraded: bool = False
     timestamp_ms: int = 0
+
+
+@dataclass
+class ObjectHeader:
+    format_version: str
+    num_layers: int
+    block_size: int
+    cache_dtype: str
+    codec_name: str
+    total_bytes: int
+    layer_offsets: List[int]
+    layer_shapes: List[tuple]
+    checksum: str = ""

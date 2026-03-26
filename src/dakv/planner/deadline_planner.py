@@ -1,6 +1,12 @@
 import uuid
-from typing import List
-from dakv.common.types import TransferPlan, PrefixManifest, NetworkEstimate
+from typing import List, Optional
+from dakv.common.types import (
+    TransferPlan,
+    PrefixManifest,
+    NetworkEstimate,
+    RequestMetadata,
+    TransferMode
+)
 from dakv.planner.estimator import BandwidthEstimator
 from dakv.logging import get_logger
 from dakv.constants import (
@@ -33,9 +39,14 @@ class DeadlinePlanner:
         self,
         manifest: PrefixManifest,
         request_id: str,
-        enable_refinement: bool = True
+        enable_refinement: bool = True,
+        request_metadata: Optional[RequestMetadata] = None
     ) -> TransferPlan:
         if manifest.matched_tokens < self.min_prefix_tokens:
+            logger.info(
+                f"Request {request_id}: prefix too short "
+                f"({manifest.matched_tokens} < {self.min_prefix_tokens}), recompute"
+            )
             return self._recompute_plan(
                 manifest.matched_tokens,
                 manifest.matched_blocks,
@@ -52,7 +63,10 @@ class DeadlinePlanner:
         fp16_time_ms = net_est.rtt_ms + (critical_nbytes * 8 * 1000.0) / net_est.bandwidth_bps
         
         if fp16_time_ms < ttft_budget_ms:
-            logger.info(f"Plan: FULL_FP16 (est {fp16_time_ms:.1f}ms < {ttft_budget_ms:.1f}ms)")
+            logger.info(
+                f"Request {request_id}: plan FULL_FP16 "
+                f"(est {fp16_time_ms:.1f}ms < budget {ttft_budget_ms:.1f}ms)"
+            )
             return TransferPlan(
                 plan_id=str(uuid.uuid4()),
                 matched_tokens=manifest.matched_tokens,
@@ -71,7 +85,10 @@ class DeadlinePlanner:
         int8_time_ms = net_est.rtt_ms + (int8_nbytes * 8 * 1000.0) / net_est.bandwidth_bps
         
         if int8_time_ms >= ttft_budget_ms:
-            logger.warning(f"Plan: RECOMPUTE (int8 {int8_time_ms:.1f}ms >= {ttft_budget_ms:.1f}ms)")
+            logger.warning(
+                f"Request {request_id}: plan RECOMPUTE "
+                f"(int8 {int8_time_ms:.1f}ms >= budget {ttft_budget_ms:.1f}ms)"
+            )
             return self._recompute_plan(
                 manifest.matched_tokens,
                 manifest.matched_blocks,
@@ -79,7 +96,10 @@ class DeadlinePlanner:
             )
         
         if not enable_refinement or refine_nbytes == 0:
-            logger.info(f"Plan: CRITICAL_INT8_ONLY (refinement disabled)")
+            logger.info(
+                f"Request {request_id}: plan CRITICAL_INT8_ONLY "
+                "(refinement disabled or unavailable)"
+            )
             return TransferPlan(
                 plan_id=str(uuid.uuid4()),
                 matched_tokens=manifest.matched_tokens,
@@ -96,7 +116,10 @@ class DeadlinePlanner:
         
         refine_budget_ms = max(100, int(self.ttft_slo_ms * 0.3))
         
-        logger.info(f"Plan: CRITICAL_INT8_THEN_FP16 (critical {int8_time_ms:.1f}ms, refine budget {refine_budget_ms}ms)")
+        logger.info(
+            f"Request {request_id}: plan CRITICAL_INT8_THEN_FP16 "
+            f"(critical est {int8_time_ms:.1f}ms, refine budget {refine_budget_ms}ms)"
+        )
         return TransferPlan(
             plan_id=str(uuid.uuid4()),
             matched_tokens=manifest.matched_tokens,

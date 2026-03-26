@@ -2,6 +2,19 @@
 
 A deadline-aware prefix KV caching system with tiered storage for vLLM.
 
+## System Requirements
+
+### Tested Environment
+- **Python**: 3.9+
+- **PyTorch**: 2.1.0
+- **CUDA**: 11.8+
+- **vLLM**: 0.6.3.post1
+- **GPU**: 4×V100 (32GB) or equivalent
+- **OS**: Linux (tested on Ubuntu 20.04/22.04)
+
+### Important Note on Versions
+This project uses **fixed versions** to ensure stability. Do not upgrade dependencies without testing, as vLLM's KV Connector V1 API may change between versions.
+
 ## Features
 
 - **Tiered Storage**: GPU HBM (T0) → CPU Pinned Memory (T1) → Remote KV Store (T2)

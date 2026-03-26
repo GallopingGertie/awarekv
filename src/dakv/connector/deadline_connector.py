@@ -1,12 +1,22 @@
-from typing import Optional, Any
+from typing import Optional, Any, List, Dict
+from concurrent.futures import ThreadPoolExecutor
 from dakv.config import DeadlineKVConfig
 from dakv.planner.deadline_planner import DeadlinePlanner
 from dakv.planner.estimator import BandwidthEstimator
 from dakv.connector.scheduler_side import SchedulerSide
 from dakv.connector.worker_side import WorkerSide
 from dakv.connector.state import StateManager
-from dakv.metrics import start_metrics_server
+from dakv.connector.vllm_adapter import (
+    extract_request_id,
+    extract_prompt_tokens,
+    extract_num_computed_tokens,
+    extract_allocated_blocks,
+    validate_connector_role
+)
+from dakv.common.types import DeadlineConnectorMetadata, RequestTransferState, WorkerLoadResult
+from dakv.metrics import start_metrics_server, get_metrics_collector
 from dakv.logging import get_logger, set_log_level
+from dakv.constants import REQUEST_STATUS_DONE
 
 
 logger = get_logger()
@@ -19,6 +29,9 @@ class DeadlinePrefixKVConnector:
     
     def __init__(self, vllm_config, role: str, kv_cache_config=None):
         logger.info(f"Initializing DeadlinePrefixKVConnector with role={role}")
+        
+        if not validate_connector_role(role):
+            raise ValueError(f"Invalid connector role: {role}")
         
         extra_config = getattr(vllm_config, 'kv_connector_extra_config', {})
         
@@ -34,6 +47,7 @@ class DeadlinePrefixKVConnector:
         self.kv_cache_config = kv_cache_config
         
         self.state_manager = StateManager()
+        self.metrics = get_metrics_collector()
         
         self.estimator = BandwidthEstimator(alpha=self.config.planner.alpha)
         
@@ -46,6 +60,9 @@ class DeadlinePrefixKVConnector:
         
         self.scheduler_side: Optional[SchedulerSide] = None
         self.worker_side: Optional[WorkerSide] = None
+        
+        self.pending_metadata: Dict[str, DeadlineConnectorMetadata] = {}
+        self.worker_results: Dict[str, WorkerLoadResult] = {}
         
         if role in ["kv_both", "kv_consumer"]:
             self.scheduler_side = SchedulerSide(
@@ -61,7 +78,10 @@ class DeadlinePrefixKVConnector:
             )
         
         if self.config.metrics.enable_prometheus:
-            start_metrics_server(self.config.metrics.prometheus_port)
+            try:
+                start_metrics_server(self.config.metrics.prometheus_port)
+            except Exception as e:
+                logger.warning(f"Failed to start metrics server: {e}")
         
         logger.info("DeadlinePrefixKVConnector initialized successfully")
     
@@ -69,17 +89,62 @@ class DeadlinePrefixKVConnector:
         if self.scheduler_side is None:
             return (0, False)
         
-        return self.scheduler_side.get_num_matched_tokens(request, num_computed_tokens)
+        return self.scheduler_side.prepare_request_state(request, num_computed_tokens)
     
-    def update_state_after_alloc(self, *args, **kwargs):
-        pass
+    def update_state_after_alloc(self, request, scheduler_output):
+        if self.scheduler_side is None:
+            return
+        
+        request_id = extract_request_id(request)
+        
+        try:
+            allocated_blocks = extract_allocated_blocks(scheduler_output, request_id)
+            
+            if allocated_blocks:
+                self.scheduler_side.bind_allocated_blocks(request_id, allocated_blocks)
+                logger.debug(f"Request {request_id}: bound {len(allocated_blocks)} allocated blocks")
+        except Exception as e:
+            logger.error(f"Failed to update state after alloc for {request_id}: {e}")
     
-    def update_connector_output(self, *args, **kwargs):
-        pass
+    def build_connector_meta(self, request):
+        if self.scheduler_side is None:
+            return None
+        
+        request_id = extract_request_id(request)
+        
+        metadata = self.scheduler_side.build_request_metadata(request_id)
+        
+        if metadata:
+            self.pending_metadata[request_id] = metadata
+            logger.debug(f"Request {request_id}: metadata prepared for worker")
+        
+        return metadata
+    
+    def build_connector_worker_meta(self, request, metadata):
+        return metadata
+    
+    def update_connector_output(self, request_id: str, result: WorkerLoadResult):
+        if result:
+            self.worker_results[request_id] = result
+            logger.debug(f"Request {request_id}: worker result received, success={result.success}")
     
     def request_finished(self, request_id: str):
-        self.state_manager.remove(request_id)
-        logger.debug(f"Request {request_id} finished")
+        if self.scheduler_side:
+            state = self.scheduler_side.get_state(request_id)
+            if state:
+                state.status = REQUEST_STATUS_DONE
+                state.request_finished = True
+        
+        if request_id in self.pending_metadata:
+            del self.pending_metadata[request_id]
+        
+        if request_id in self.worker_results:
+            del self.worker_results[request_id]
+        
+        if self.worker_side:
+            self.worker_side.request_finished(request_id)
+        
+        logger.debug(f"Request {request_id} finished and cleaned up")
     
     def take_events(self):
         return []
@@ -88,35 +153,53 @@ class DeadlinePrefixKVConnector:
         if self.worker_side is None:
             return
         
-        request_id = kwargs.get("request_id", "unknown")
-        object_id = kwargs.get("object_id", "")
-        codec_name = kwargs.get("codec_name", self.config.critical_codec)
-        num_layers = kwargs.get("num_layers", 32)
+        request_id = kwargs.get("request_id")
+        if not request_id:
+            logger.warning("start_load_kv called without request_id")
+            return
         
-        self.worker_side.start_load_kv(request_id, object_id, codec_name, num_layers)
+        metadata = self.pending_metadata.get(request_id)
+        if not metadata:
+            logger.warning(f"Request {request_id}: no metadata found for loading")
+            return
+        
+        try:
+            self.worker_side.start_load_kv(forward_context, metadata)
+        except Exception as e:
+            logger.error(f"Request {request_id}: failed to start load: {e}")
+            result = WorkerLoadResult(
+                request_id=request_id,
+                success=False,
+                error_code="load_start_failed",
+                error_message=str(e)
+            )
+            self.update_connector_output(request_id, result)
     
     def wait_for_layer_load(self, layer_name: str):
         if self.worker_side is None:
             return None
         
-        layer_idx = int(layer_name.split("_")[-1]) if "_" in layer_name else 0
-        
-        return self.worker_side.wait_for_layer_load(layer_idx)
+        return self.worker_side.wait_for_layer_load(layer_name)
     
     def save_kv_layer(self, layer_name: str, kv_layer, attn_metadata, **kwargs):
         if self.worker_side is None:
             return
         
-        layer_idx = int(layer_name.split("_")[-1]) if "_" in layer_name else 0
-        object_id = kwargs.get("object_id", "")
+        request_id = kwargs.get("request_id")
+        if not request_id:
+            logger.warning("save_kv_layer called without request_id")
+            return
         
-        self.worker_side.save_kv_layer(layer_idx, kv_layer, object_id)
+        try:
+            self.worker_side.save_kv_layer(layer_name, kv_layer, attn_metadata, request_id)
+        except Exception as e:
+            logger.error(f"Request {request_id}: failed to save layer {layer_name}: {e}")
     
     def wait_for_save(self):
-        pass
-    
-    def build_connector_worker_meta(self, *args, **kwargs):
-        return {}
+        if self.worker_side is None:
+            return
+        
+        self.worker_side.wait_for_save()
     
     def get_finished(self):
         return []

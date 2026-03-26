@@ -1,5 +1,9 @@
 model_id: "meta-llama/Llama-2-7b-hf"
+tokenizer_id: "meta-llama/Llama-2-7b-hf"
 kv_layout_version: "v1-block-first"
+block_size: 16
+cache_dtype: "float16"
+num_layers: 32
 ttft_slo_ms: 500
 tp_size: 4
 enable_tier1_host_cache: true
