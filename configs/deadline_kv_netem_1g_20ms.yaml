@@ -1,0 +1,44 @@
+model_id: "meta-llama/Llama-2-7b-hf"
+kv_layout_version: "v1-block-first"
+ttft_slo_ms: 500
+tp_size: 4
+enable_tier1_host_cache: true
+enable_refinement: true
+critical_codec: "int8_symm"
+refinement_codec: "fp16_raw"
+
+manifest:
+  host: "10.0.0.2"
+  port: 8081
+  url: "http://10.0.0.2:8081"
+
+data:
+  host: "10.0.0.2"
+  port: 9001
+
+storage:
+  root_dir: "/tmp/dakv_store"
+  max_objects: 1000
+  ttl_seconds: 3600
+
+network:
+  timeout_ms: 2000
+  refine_timeout_ms: 300
+  enable_simulation: true
+  bandwidth_mbps: 1000
+  rtt_ms: 20
+  loss_percent: 0
+
+host_cache:
+  max_bytes: 4294967296
+  eviction_policy: "lru"
+
+planner:
+  policy: "rule_based"
+  alpha: 0.8
+  min_prefix_tokens: 128
+
+metrics:
+  enable_prometheus: true
+  prometheus_port: 9090
+  log_level: "INFO"
